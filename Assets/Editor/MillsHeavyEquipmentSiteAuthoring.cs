@@ -18,7 +18,8 @@ internal static class MillsHeavyEquipmentSiteAuthoring
     private const string Action = "Author Mills temporary mobile crane";
 
     internal static BuildLocation FindLocation(Scene scene) => All<BuildLocation>(scene).Single(site => HasAncestor(site.transform, SiteName));
-    internal static LiveLoadVehicle FindVehicle(Scene scene) => All<LiveLoadVehicle>(scene).Single(v => v.name == VehicleName && HasAncestor(v.transform, RigName));
+    internal static LiveLoadVehicle FindVehicle(Scene scene) => All<LiveLoadVehicle>(scene).Single(v =>
+        HasAncestor(v.transform, RigName) && v.assignedContract != null && v.assignedContract.ContractID == "MillsMainContract");
     internal static (Point start, Point end) GetRoadAnchors(BuildLocation location)
     {
         Point start=location.startingAnchors.Single(p=>p!=null && p.name=="LeftAnchor");
@@ -163,17 +164,22 @@ internal static class MillsHeavyEquipmentSiteAuthoring
         {
             // These are hidden sphere proxies; their transforms are authoritative
             // even when the disabled renderer has not refreshed its cached bounds.
-            Vector3 wheelCenter=wheel.transform.position;
+            Renderer tire=wheel.GetComponentInChildren<Renderer>();
+            Vector3 wheelCenter=tire!=null&&tire.enabled?tire.bounds.center:wheel.transform.position;
+            var settings=new SerializedObject(vehicle);
+            float radius=settings.FindProperty("useWheelMeshRadius").boolValue&&tire!=null?tire.bounds.extents.y:vehicle.wheelRadius;
             foreach(Vector3 shift in new[]{Vector3.zero,to-from})
             {
                 Vector3 point=wheelCenter+shift;
-                bool hasGround=TryGround(scene,new Vector3(point.x,point.y-vehicle.wheelRadius,point.z),out float height);
-                Require(hasGround && Mathf.Abs(height-(point.y-vehicle.wheelRadius))<.12f,
+                bool hasGround=TryGround(scene,new Vector3(point.x,point.y-radius,point.z),out float height);
+                Require(hasGround && Mathf.Abs(height-(point.y-radius))<.12f,
                     $"Crane wheel {wheel.name} at {point:F3} radius {vehicle.wheelRadius:F3}: expected road Y {point.y-vehicle.wheelRadius:F3}, found={(hasGround?height.ToString("F3"):"none")}.");
             }
         }
-        report.AppendLine($"PASS: temporary {contract.liveLoadWeight:0.##} kg mobile crane, {vehicle.wheelObjects.Length} tire-derived physical wheels (radius {vehicle.wheelRadius:0.###}m), route {from:F2} -> {to:F2}, full vehicle finish clearance and grounded parking.");
-        report.AppendLine("Temporary visual limitation: the imported crane is monolithic, so visible tires remain static; hidden physical wheels drive the test. Replace the rig when the final vehicle is authored.");
+        report.AppendLine($"PASS: {contract.liveLoadWeight:0.##} kg mobile crane, {vehicle.wheelObjects.Length} driven wheels, route {from:F2} -> {to:F2}, full vehicle finish clearance and grounded parking.");
+        report.AppendLine(vehicle.wheelObjects.All(w=>w.GetComponentInChildren<Renderer>().enabled)
+            ? "Visible wheel meshes are assigned directly to the physical wheel rig."
+            : "Temporary visual limitation: hidden wheel proxies drive a monolithic model.");
     }
     private static List<Bounds> FindTires(GameObject model)
     {

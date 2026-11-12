@@ -1,0 +1,72 @@
+{
+  "maps": [
+    "CanyonCrossing",
+    "TownRiver"
+  ],
+  "clips": [
+    {
+      "profile": "taxi",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/taxi_slow_drive_loop.wav",
+      "guid": "8f8e9ecbc844433e83a0370ae73e31b9",
+      "sha256": "756e4d0b43b34ca9ecefee29d4d75778f9d7b57f00e9837d6ada3c7e18c2c046",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "jeep",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/jeep_slow_drive_loop.wav",
+      "guid": "759f2dedebe040d4b751db031fb15d2f",
+      "sha256": "7311ca7418c03729bd52011fdd5161605449465706b71f4dfc146e6d6f6c266b",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "suv",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/suv_slow_drive_loop.wav",
+      "guid": "f3d77f4de27740d6b39d3f6c9e656bd7",
+      "sha256": "52f6e6ec722af3f7145833b556ac5c7dae7b8e2fabc1d12d43c8ea0b4e372087",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "pickup",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/pickup_slow_drive_loop.wav",
+      "guid": "acb71bc333784e8a8b4e0b699659a8da",
+      "sha256": "d3c6c1f083a334f0165346b241a2dfb1fe6c9935a31a5abdfce925f7d99d5d22",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "delivery_truck",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/delivery_truck_slow_drive_loop.wav",
+      "guid": "ab51364e12624e9fae136be49a433608",
+      "sha256": "e0fa6be2d301ed8d22ac9984bcefb69cc26467d10150498d64c582acd5d6d5ce",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "cargo_truck",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/cargo_truck_slow_drive_loop.wav",
+      "guid": "7a4698908d2140a5a3b1073861cfd374",
+      "sha256": "d00809681dedbd6e88478900e88bcc13c6473fcfb41e31a0864fdd995281f878",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "boat",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/boat_slow_drive_loop.wav",
+      "guid": "9aff59b819af4ff397689a099d37386c",
+      "sha256": "ef27ff2857b502397b3cca5e5cc2fe8fbcf27df03dd4e09a22aa57a586884f78",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "handcart",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/handcart_rolling_loop.wav",
+      "guid": "fa170e0440e943f4ab08694e8d00ef63",
+      "sha256": "1c0968222c22f6ecd347cfda67085284691180731e00c5404e43b8ffa769390b",
+      "seconds": 8,
+      "loop": true
+    }
+  ]
+}

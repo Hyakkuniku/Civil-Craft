@@ -119086,6 +119086,7 @@ MonoBehaviour:
   - {fileID: 1093757896}
   - {fileID: 1673909997}
   wheelRadius: 0.5036065
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 0.0000008028203, y: -0.00000016292067, z: 1}
   alignWheelAxisToMesh: 1
@@ -121586,6 +121587,21 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 11400000, guid: 9de353268b31b6d4aac7964bf7b8676c,
         type: 2}
+    - target: {fileID: 3869376205282343406, guid: 4247bb595c0f95d479d792694a2e7f20,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: ab51364e12624e9fae136be49a433608, type: 3}
+    - target: {fileID: 3869376205282343406, guid: 4247bb595c0f95d479d792694a2e7f20,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 0.985
+      objectReference: {fileID: 0}
+    - target: {fileID: 3869376205282343406, guid: 4247bb595c0f95d479d792694a2e7f20,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 4371954018779795650, guid: 4247bb595c0f95d479d792694a2e7f20,
         type: 3}
       propertyPath: persistentCargoId
@@ -147614,80 +147630,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 240811734}
   m_Mesh: {fileID: -335957731792297216, guid: 21bf630e9f981fd4cb2d530c1512d521, type: 3}
---- !u!1001 &240938504
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 1226144135}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalRotation.w
-      value: -0.00000003090862
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0.00000003090862
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.7071068
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0.7071068
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: 57da4b13279159e4db1fd8b07163cafd,
-        type: 3}
-      propertyPath: m_Name
-      value: Temporary Mobile Crane Visual
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 57da4b13279159e4db1fd8b07163cafd, type: 3}
---- !u!4 &240938505 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 57da4b13279159e4db1fd8b07163cafd,
-    type: 3}
-  m_PrefabInstance: {fileID: 240938504}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &240969538
 GameObject:
   m_ObjectHideFlags: 0
@@ -155950,89 +155892,6 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 1528758693}
   m_SourcePrefab: {fileID: 100100000, guid: 4293e23266ff5ed4e9fb3b0bcdee955a, type: 3}
---- !u!1 &253701929
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 253701930}
-  - component: {fileID: 253701932}
-  - component: {fileID: 253701931}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 1
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &253701930
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 253701929}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.9500008, y: 0.5800002, z: -1.1000004}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &253701931
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 253701929}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &253701932
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 253701929}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &254134266
 GameObject:
   m_ObjectHideFlags: 0
@@ -278340,6 +278199,7 @@ MonoBehaviour:
   - {fileID: 1711846460}
   - {fileID: 1698938883}
   wheelRadius: 0.5036065
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 0.0000008028203, y: -0.00000016292067, z: 1}
   alignWheelAxisToMesh: 1
@@ -284224,89 +284084,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 460248476}
   m_Mesh: {fileID: 4444728127320036556, guid: 3606b9c859ab1af4693dba06cdc4f805, type: 3}
---- !u!1 &460356360
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 460356361}
-  - component: {fileID: 460356363}
-  - component: {fileID: 460356362}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 8
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &460356361
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 460356360}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 3.650001, y: 0.5799999, z: 1.1000004}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &460356362
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 460356360}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &460356363
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 460356360}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &460371339
 GameObject:
   m_ObjectHideFlags: 0
@@ -316534,7 +316311,7 @@ Transform:
   m_GameObject: {fileID: 517530972}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2699.9077, y: 4.7342114, z: 6.1962204}
+  m_LocalPosition: {x: 2698.925, y: 5.5195284, z: 5.9723616}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -392332,6 +392109,21 @@ PrefabInstance:
       propertyPath: vehicleWeightText
       value: 
       objectReference: {fileID: 6128661215989856902}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 1.015
+      objectReference: {fileID: 0}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 3922368601465291137, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: assignedContract
@@ -396864,6 +396656,16 @@ PrefabInstance:
       propertyPath: vehicleWeightText
       value: 
       objectReference: {fileID: 6128661215989856902}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 2558167023464668648, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: m_Size.x
@@ -405561,7 +405363,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -36.00006, y: 0}
+  m_AnchoredPosition: {x: -36, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &660994319
@@ -457971,6 +457773,21 @@ PrefabInstance:
       propertyPath: vehicleWeightText
       value: 
       objectReference: {fileID: 6128661215989856902}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 0.985
+      objectReference: {fileID: 0}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 3922368601465291137, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: assignedContract
@@ -481094,89 +480911,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 289301614986012343, guid: 172157c52b751054b8018b8282b26752, type: 3}
---- !u!1 &784958889
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 784958890}
-  - component: {fileID: 784958892}
-  - component: {fileID: 784958891}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 7
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &784958890
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 784958889}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 3.650001, y: 0.5800002, z: -1.0999999}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &784958891
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 784958889}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &784958892
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 784958889}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &784967914
 GameObject:
   m_ObjectHideFlags: 0
@@ -504940,6 +504674,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84245413ee264888af481104105f58ac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  simulationSound:
+    clip: {fileID: 8300000, guid: 9aff59b819af4ff397689a099d37386c, type: 3}
+    output: {fileID: 0}
+    volume: 0.7
+    pitch: 1
   assignedContract: {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
   travelDirection: {x: 0, y: 0, z: -1}
   travelDistance: 300
@@ -512481,89 +512220,6 @@ MonoBehaviour:
   m_Center: {x: 0, y: 0, z: 0}
   m_Area: 3
   m_AffectedAgents: ffffffff
---- !u!1 &836014281
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 836014282}
-  - component: {fileID: 836014284}
-  - component: {fileID: 836014283}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 3
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &836014282
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 836014281}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.4500004, y: 0.5799999, z: 1.0999999}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &836014283
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 836014281}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &836014284
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 836014281}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &836219777
 GameObject:
   m_ObjectHideFlags: 0
@@ -528952,6 +528608,7 @@ MonoBehaviour:
   - {fileID: 1346794965}
   - {fileID: 1806742172}
   wheelRadius: 0.33999997
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 0, y: 0.0000000754979, z: -1}
   alignWheelAxisToMesh: 1
@@ -541181,6 +540838,7 @@ MonoBehaviour:
   - {fileID: 882711099}
   - {fileID: 882711098}
   wheelRadius: 0.33999997
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 0, y: 0.0000000754979, z: -1}
   alignWheelAxisToMesh: 1
@@ -549537,6 +549195,7 @@ MonoBehaviour:
   - {fileID: 1410289578}
   - {fileID: 35254639}
   wheelRadius: 0.5036065
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 0.0000008028203, y: -0.00000016292067, z: -1}
   alignWheelAxisToMesh: 1
@@ -587646,7 +587305,7 @@ Transform:
   m_GameObject: {fileID: 964788670}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2803.1748, y: 4.7342076, z: 6.1962204}
+  m_LocalPosition: {x: 2805.4666, y: 5.5195246, z: 5.9723616}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -587690,7 +587349,7 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Size: {x: 1.25, y: 6, z: 16}
-  m_Center: {x: 6.6470013, y: 1.9749999, z: 0}
+  m_Center: {x: 7.6297364, y: 1.189683, z: 0}
 --- !u!1 &964808433
 GameObject:
   m_ObjectHideFlags: 0
@@ -599876,6 +599535,21 @@ PrefabInstance:
       propertyPath: vehicleWeightText
       value: 
       objectReference: {fileID: 6128661215989856902}
+    - target: {fileID: 8282072568389699372, guid: e8eb64cd35a4cb944af15ffdbcc66098,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: acb71bc333784e8a8b4e0b699659a8da, type: 3}
+    - target: {fileID: 8282072568389699372, guid: e8eb64cd35a4cb944af15ffdbcc66098,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 0.985
+      objectReference: {fileID: 0}
+    - target: {fileID: 8282072568389699372, guid: e8eb64cd35a4cb944af15ffdbcc66098,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -606130,6 +605804,116 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.4605556, y: 4.9213963, z: 0.36}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!1001 &995831634
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1226144135}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 90
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: c293e49d5fc22e641bd15d3b08504af7,
+        type: 3}
+      propertyPath: m_Name
+      value: Crane1 1 Visual
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c293e49d5fc22e641bd15d3b08504af7, type: 3}
+--- !u!4 &995831635 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: c293e49d5fc22e641bd15d3b08504af7,
+    type: 3}
+  m_PrefabInstance: {fileID: 995831634}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &995831636 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -5592600217277415531, guid: c293e49d5fc22e641bd15d3b08504af7,
+    type: 3}
+  m_PrefabInstance: {fileID: 995831634}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &995831637 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6514482675885742982, guid: c293e49d5fc22e641bd15d3b08504af7,
+    type: 3}
+  m_PrefabInstance: {fileID: 995831634}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &995831638 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7351639031670899365, guid: c293e49d5fc22e641bd15d3b08504af7,
+    type: 3}
+  m_PrefabInstance: {fileID: 995831634}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &995831639 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -3050037802830912051, guid: c293e49d5fc22e641bd15d3b08504af7,
+    type: 3}
+  m_PrefabInstance: {fileID: 995831634}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &995831640 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -3017191760787480052, guid: c293e49d5fc22e641bd15d3b08504af7,
+    type: 3}
+  m_PrefabInstance: {fileID: 995831634}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &995831641 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -3995034251165722927, guid: c293e49d5fc22e641bd15d3b08504af7,
+    type: 3}
+  m_PrefabInstance: {fileID: 995831634}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &995887276
 GameObject:
   m_ObjectHideFlags: 0
@@ -741512,7 +741296,7 @@ GameObject:
   - component: {fileID: 1226144137}
   - component: {fileID: 1226144136}
   m_Layer: 6
-  m_Name: Mills Temporary Mobile Crane
+  m_Name: Mills Crane1 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -741527,19 +741311,11 @@ Transform:
   m_GameObject: {fileID: 1226144134}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2699.9077, y: 4.7342114, z: 6.1962204}
+  m_LocalPosition: {x: 2698.925, y: 5.5195284, z: 5.9723616}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 240938505}
-  - {fileID: 253701930}
-  - {fileID: 1433105126}
-  - {fileID: 836014282}
-  - {fileID: 1397928904}
-  - {fileID: 1264728473}
-  - {fileID: 2002941738}
-  - {fileID: 784958890}
-  - {fileID: 460356361}
+  - {fileID: 995831635}
   m_Father: {fileID: 1988350027}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1226144136
@@ -741561,7 +741337,7 @@ MonoBehaviour:
     output: {fileID: 0}
     volume: 0.65
     pitch: 1
-  vehicleName: Mobile Crane (Temporary)
+  vehicleName: Mobile Crane
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
   vehicleWeightText: {fileID: 0}
@@ -741589,17 +741365,16 @@ MonoBehaviour:
   normalizeOverscaledPhysicsRoot: 1
   physicsRootScaleThreshold: 10
   wheelObjects:
-  - {fileID: 253701929}
-  - {fileID: 1433105125}
-  - {fileID: 836014281}
-  - {fileID: 1397928903}
-  - {fileID: 1264728472}
-  - {fileID: 2002941737}
-  - {fileID: 784958889}
-  - {fileID: 460356360}
-  wheelRadius: 0.58000004
+  - {fileID: 995831641}
+  - {fileID: 995831640}
+  - {fileID: 995831639}
+  - {fileID: 995831638}
+  - {fileID: 995831637}
+  - {fileID: 995831636}
+  wheelRadius: 0.9300833
+  useWheelMeshRadius: 1
   wheelMass: 50
-  spinAxis: {x: 0, y: 0, z: 1}
+  spinAxis: {x: 1, y: 0, z: 0}
   alignWheelAxisToMesh: 1
   brakeTorque: 24000
   stoppedLinearSpeed: 0.08
@@ -741657,8 +741432,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 10.767002, y: 3.1100006, z: 2.8700016}
-  m_Center: {x: 0.7385001, y: 1.7550002, z: -0.00000011920929}
+  m_Size: {x: 14.041504, y: 8.24443, z: 5.7898817}
+  m_Center: {x: 0.083984375, y: 3.9144483, z: 0.22746634}
 --- !u!1 &1226161247
 GameObject:
   m_ObjectHideFlags: 0
@@ -761772,6 +761547,21 @@ PrefabInstance:
       propertyPath: vehicleWeightText
       value: 
       objectReference: {fileID: 6128661215989856902}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 1.015
+      objectReference: {fileID: 0}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 3922368601465291137, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: assignedContract
@@ -764917,89 +764707,6 @@ MonoBehaviour:
   m_Center: {x: 0, y: 0, z: 0}
   m_Area: 3
   m_AffectedAgents: ffffffff
---- !u!1 &1264728472
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1264728473}
-  - component: {fileID: 1264728475}
-  - component: {fileID: 1264728474}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 5
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1264728473
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1264728472}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.1500006, y: 0.5800002, z: -1.1}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &1264728474
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1264728472}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1264728475
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1264728472}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1264789895
 GameObject:
   m_ObjectHideFlags: 0
@@ -766104,6 +765811,7 @@ MonoBehaviour:
   - {fileID: 1139975291}
   - {fileID: 1139975290}
   wheelRadius: 0.5036065
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 0.0000008028203, y: -0.00000016292067, z: -1}
   alignWheelAxisToMesh: 1
@@ -787363,6 +787071,21 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 11400000, guid: e8c4a3554dc04105b9bb0ecfa923fd13,
         type: 2}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: acb71bc333784e8a8b4e0b699659a8da, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 1.015
+      objectReference: {fileID: 0}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 3922368601465291137, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: assignedContract
@@ -842111,10 +841834,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 8f8e9ecbc844433e83a0370ae73e31b9, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 0.985
   vehicleName: Taxi
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -842148,6 +841871,7 @@ MonoBehaviour:
   - {fileID: 196232431}
   - {fileID: 260673353}
   wheelRadius: 0.4
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: -1, y: 0, z: 0}
   alignWheelAxisToMesh: 1
@@ -843036,89 +842760,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1397869043}
   m_Mesh: {fileID: -1579241630799410176, guid: 0cc5a0d2670e4334b86b09cd6c0e2166, type: 3}
---- !u!1 &1397928903
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1397928904}
-  - component: {fileID: 1397928906}
-  - component: {fileID: 1397928905}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 4
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1397928904
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1397928903}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.4500003, y: 0.5800002, z: -1.1000004}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &1397928905
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1397928903}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1397928906
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1397928903}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1398198866
 GameObject:
   m_ObjectHideFlags: 0
@@ -865301,89 +864942,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1433053262}
   m_Mesh: {fileID: -1579241630799410176, guid: 3606b9c859ab1af4693dba06cdc4f805, type: 3}
---- !u!1 &1433105125
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1433105126}
-  - component: {fileID: 1433105128}
-  - component: {fileID: 1433105127}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 2
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1433105126
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1433105125}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.9500008, y: 0.5799999, z: 1.0999999}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &1433105127
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1433105125}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1433105128
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1433105125}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1433128175
 GameObject:
   m_ObjectHideFlags: 0
@@ -866301,6 +865859,21 @@ PrefabInstance:
       propertyPath: vehicleWeightText
       value: 
       objectReference: {fileID: 6128661215989856902}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 0.985
+      objectReference: {fileID: 0}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 3922368601465291137, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: assignedContract
@@ -874191,6 +873764,21 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 11400000, guid: 08ef0a30971b46d18d7752fdf9b5470f,
         type: 2}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 0.985
+      objectReference: {fileID: 0}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 3922368601465291137, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: assignedContract
@@ -915069,13 +914657,22 @@ PrefabInstance:
         type: 3}
       propertyPath: simulationSound.clip
       value: 
-      objectReference: {fileID: 8300000, guid: 951e0f65c68a45ab8d09f979b7aa61e6, type: 3}
+      objectReference: {fileID: 8300000, guid: acb71bc333784e8a8b4e0b699659a8da, type: 3}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 0.985
+      objectReference: {fileID: 0}
     - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: simulationSound.output
       value: 
-      objectReference: {fileID: -1157879735568590382, guid: 842026f4aa4a40c45a58164f3ab562be,
-        type: 2}
+      objectReference: {fileID: 0}
+    - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: simulationSound.maxDistance
@@ -1159991,8 +1159588,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1870683347}
   m_HandleRect: {fileID: 1870683345}
   m_Direction: 0
-  m_Value: -0.00000093503786
-  m_Size: 0.5676823
+  m_Value: -0.00000073467237
+  m_Size: 0.5676822
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -1160684,10 +1160281,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 8f8e9ecbc844433e83a0370ae73e31b9, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: Taxi
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -1160721,6 +1160318,7 @@ MonoBehaviour:
   - {fileID: 1914223701}
   - {fileID: 1914223700}
   wheelRadius: 0.4
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: -1, y: 0, z: 0}
   alignWheelAxisToMesh: 1
@@ -1211303,89 +1210901,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2002864711}
   m_Mesh: {fileID: 4444728127320036556, guid: a1527225a05d8e143acd4c38ba114c89, type: 3}
---- !u!1 &2002941737
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2002941738}
-  - component: {fileID: 2002941740}
-  - component: {fileID: 2002941739}
-  m_Layer: 0
-  m_Name: Temporary crane wheel 6
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2002941738
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2002941737}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.1500006, y: 0.5799999, z: 1.1000003}
-  m_LocalScale: {x: 1.1600001, y: 1.1600001, z: 1.1600001}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1226144135}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &2002941739
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2002941737}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &2002941740
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2002941737}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &2002952995
 GameObject:
   m_ObjectHideFlags: 0
@@ -1230945,6 +1230460,7 @@ MonoBehaviour:
   - {fileID: 2038525845}
   - {fileID: 2038525844}
   wheelRadius: 0.33999997
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 0, y: 0.0000000754979, z: -1}
   alignWheelAxisToMesh: 1
@@ -1326428,7 +1325944,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 13.8
+  m_fontSize: 13.5
   m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -1348010,10 +1347526,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: ab51364e12624e9fae136be49a433608, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: Delivery Truck
   vehicleInfoPanel: {fileID: 8880294211448637854}
   vehicleNameText: {fileID: 3652125584594633526}
@@ -1348047,6 +1347563,7 @@ MonoBehaviour:
   - {fileID: 7916850904770812855}
   - {fileID: 8651281530905864373}
   wheelRadius: 0.6
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 1, y: 0, z: 0}
   alignWheelAxisToMesh: 1
@@ -1360838,6 +1360355,21 @@ PrefabInstance:
       propertyPath: vehicleWeightText
       value: 
       objectReference: {fileID: 6128661215989856902}
+    - target: {fileID: 8282072568389699372, guid: e8eb64cd35a4cb944af15ffdbcc66098,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: acb71bc333784e8a8b4e0b699659a8da, type: 3}
+    - target: {fileID: 8282072568389699372, guid: e8eb64cd35a4cb944af15ffdbcc66098,
+        type: 3}
+      propertyPath: simulationSound.pitch
+      value: 1.015
+      objectReference: {fileID: 0}
+    - target: {fileID: 8282072568389699372, guid: e8eb64cd35a4cb944af15ffdbcc66098,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1402096,6 +1401628,16 @@ PrefabInstance:
         type: 3}
       propertyPath: engineTorque
       value: 5000
+      objectReference: {fileID: 0}
+    - target: {fileID: 8652784298424769293, guid: 424bfcb2c2457b240b5ced6cd87c1ee0,
+        type: 3}
+      propertyPath: simulationSound.clip
+      value: 
+      objectReference: {fileID: 8300000, guid: 759f2dedebe040d4b751db031fb15d2f, type: 3}
+    - target: {fileID: 8652784298424769293, guid: 424bfcb2c2457b240b5ced6cd87c1ee0,
+        type: 3}
+      propertyPath: simulationSound.volume
+      value: 0.75
       objectReference: {fileID: 0}
     - target: {fileID: 9207110553154431989, guid: 424bfcb2c2457b240b5ced6cd87c1ee0,
         type: 3}

@@ -7,7 +7,7 @@ using UnityEngine.Serialization;
 /// during that contract's bridge test; only a completed crossing hides it.
 /// </summary>
 [DisallowMultipleComponent]
-public sealed class BoatBridgeCrossing : MonoBehaviour
+public sealed partial class BoatBridgeCrossing : MonoBehaviour
 {
     [Header("Contract and Travel")]
     public ContractSO assignedContract;
@@ -160,6 +160,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void OnDisable()
     {
+        StopBoatAudio();
         BoatWaterWake.Unregister(transform);
         LevelCompleteManager.SimulationSucceeded -= HandleSimulationSucceeded;
         moving = false;
@@ -169,6 +170,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void OnDestroy()
     {
+        boatAudio?.Dispose();
         UnbindSimulationManager();
     }
 
@@ -232,6 +234,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void HandleSimulationStopped()
     {
+        StopBoatAudio();
         moving = false;
         SetMeshQueriesActive(false);
         activeLocation = null;
@@ -253,6 +256,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         // an obstacle, not another goal, so stop its impact checks immediately
         // without hiding it or waiting for its full travel distance.
         moving = false;
+        StopBoatAudio();
         SetMeshQueriesActive(false);
     }
 
@@ -296,6 +300,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         distanceTraveled += step;
         if (distanceTraveled < travelDistance) return;
         moving = false;
+        StopBoatAudio();
         SetMeshQueriesActive(false);
         finishedCrossing = true;
         SetBoatVisible(false);

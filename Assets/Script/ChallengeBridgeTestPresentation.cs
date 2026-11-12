@@ -468,6 +468,8 @@ public sealed class ChallengeBridgeTestView : IDisposable
                     wakeBoats.Add(boat.transform);
                 }
                 boatRenderers.Add(targets.Count, meshes);
+                additionalVehicleAudio.Add(new AdditionalVehicleAudio { Index = targets.Count,
+                    Loop = new VehicleSimulationLoop(boat.transform), Sound = boatSource.SimulationSound });
                 foreach (Renderer renderer in meshes) boatRendererStates.Add(renderer, renderer.enabled);
                 targets.Add(boat.transform);
             }
@@ -622,6 +624,13 @@ public sealed class ChallengeBridgeTestView : IDisposable
         bool paused = audioPaused || !Application.isFocused || AudioListener.pause || Time.timeScale <= 0f;
         bool fresh = hasTimeline && !finalPose && !vehicleAudioStopped && samples[audio.Index].Received &&
             Time.unscaledTime - audio.LastArrival <= VehicleAudioStreamTimeout;
+        if (boatRenderers.TryGetValue(audio.Index, out Renderer[] boatMeshes))
+        {
+            bool visible = false;
+            foreach (Renderer mesh in boatMeshes)
+                if (mesh != null && mesh.enabled) { visible = true; break; }
+            fresh &= visible;
+        }
         if (!fresh) { audio.HasPosition = false; audio.LastMotion = float.NegativeInfinity; audio.Loop.Stop(); return; }
         Vector3 position = targets[audio.Index].position;
         Vector3 displacement = audio.HasPosition ? position - audio.Previous : Vector3.zero;

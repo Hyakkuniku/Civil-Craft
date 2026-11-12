@@ -302,6 +302,8 @@ public partial class LiveLoadVehicle : Interactable
     [Header("Custom Wheel Setup")]
     public GameObject[] wheelObjects;
     public float wheelRadius = 0.4f;
+    [Tooltip("Size each physical wheel from its visible tire. Enable for vehicles with different front and rear tire sizes.")]
+    [SerializeField] private bool useWheelMeshRadius;
     public float wheelMass = 50f;
     public Vector3 spinAxis = new Vector3(1, 0, 0); 
     [Tooltip("Align the hinge to the wheel mesh's thin axle dimension, including imported child rotations. The authored Spin Axis still controls spin direction.")]
@@ -414,6 +416,7 @@ public partial class LiveLoadVehicle : Interactable
         public Vector3 originalLocalPos;
         public Quaternion originalLocalRot;
         public Vector3 axleAxis;
+        public float radius;
     }
     private List<WheelData> wheels = new List<WheelData>();
 
@@ -499,13 +502,14 @@ public partial class LiveLoadVehicle : Interactable
             wd.originalLocalPos = physWheel.transform.localPosition;
             wd.originalLocalRot = physWheel.transform.localRotation;
             wd.axleAxis = ResolveWheelAxleAxis(visualWheel, physWheel.transform);
+            wd.radius = ResolveWheelRadius(rend);
 
             Collider oldCol = visualWheel.GetComponent<Collider>();
             if (oldCol != null) Destroy(oldCol);
 
             SphereCollider sc = physWheel.GetComponent<SphereCollider>();
             if (sc == null) sc = physWheel.AddComponent<SphereCollider>();
-            sc.radius = wheelRadius; sc.material = wheelMat;
+            sc.radius = wd.radius; sc.material = wheelMat;
 
             if (chassisCol != null) Physics.IgnoreCollision(chassisCol, sc, true);
 
@@ -825,6 +829,12 @@ public partial class LiveLoadVehicle : Interactable
                 foreach (Collider chassisCollider in chassisColliders)
                     Physics.IgnoreCollision(chassisCollider, wheelCol, true);
         }
+    }
+
+    private float ResolveWheelRadius(Renderer tire)
+    {
+        float radius = useWheelMeshRadius && tire != null ? tire.bounds.extents.y : wheelRadius;
+        return radius > 0.01f ? radius : Mathf.Max(0.01f, wheelRadius);
     }
 
     private Vector3 ResolveWheelAxleAxis(GameObject visualWheel, Transform axle)
@@ -1647,7 +1657,13 @@ public partial class LiveLoadVehicle : Interactable
         {
             if (w.hinge == null) continue;
             JointMotor motor = w.hinge.motor;
-            motor.targetVelocity = currentMotorSpeed * -directionX; 
+            // Imported wheel/axle transforms can face opposite ways, including
+            // after a waypoint reset. The motor sign must follow the real world
+            // axle so every driven wheel propels toward the route's finish.
+            Vector3 worldAxle = w.hinge.transform.TransformDirection(w.hinge.axis);
+            float axleDirection = Vector3.Dot(worldAxle, Vector3.forward) < 0f ? -1f : 1f;
+            float radius = w.radius > 0.01f ? w.radius : wheelRadius;
+            motor.targetVelocity = currentMotorSpeed * -directionX * axleDirection * wheelRadius / radius;
             w.hinge.motor = motor;
             w.hinge.useMotor = true;
         }
@@ -1692,7 +1708,7 @@ public partial class LiveLoadVehicle : Interactable
             RaycastHit[] hits = Physics.RaycastAll(
                 wheel.physObj.transform.position,
                 Vector3.down,
-                wheelRadius + wheelGroundCheckDistance,
+                (wheel.radius > 0.01f ? wheel.radius : wheelRadius) + wheelGroundCheckDistance,
                 CampaignEdgeGuards.ExcludeFrom(Physics.DefaultRaycastLayers),
                 QueryTriggerInteraction.Ignore);
 
@@ -1744,7 +1760,7 @@ public partial class LiveLoadVehicle : Interactable
             if (w != null)
             {
                 Renderer rend = w.GetComponentInChildren<Renderer>();
-                if (rend != null) Gizmos.DrawWireSphere(rend.bounds.center, wheelRadius);
+                if (rend != null) Gizmos.DrawWireSphere(rend.bounds.center, ResolveWheelRadius(rend));
                 else Gizmos.DrawWireSphere(w.transform.position, wheelRadius);
             }
         }
