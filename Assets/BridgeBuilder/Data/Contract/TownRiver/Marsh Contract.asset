@@ -15,6 +15,12 @@ MonoBehaviour:
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
+  environmentalTest:
+    windPressureKPa: 0
+    windFromRight: 0
+    earthquakeStrengthG: 0
+    startDelay: 1
+    duration: 6
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 
@@ -35,8 +41,8 @@ MonoBehaviour:
   jobDescription: Build an arch bridge connecting the residential district directly
     to Central Rivermere. Taxis and residents must cross safely while leaving enough
     clearance for boats beneath the roadway.
-  budget: 325000
-  liveLoadWeight: 3000
+  budget: 385000
+  liveLoadWeight: 3500
   bridgeSpan: 80
   twoWayRoad: 0
   twoWayRoadWidth: 16

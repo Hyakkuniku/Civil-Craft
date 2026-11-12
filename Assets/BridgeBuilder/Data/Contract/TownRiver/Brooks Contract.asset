@@ -13,24 +13,24 @@ MonoBehaviour:
   m_Name: Brooks Contract
   m_EditorClassIdentifier: 
   liveLoadMode: 0
-  vehicleTestMode: 2
+  vehicleTestMode: 1
   liveLoadTests:
   - entryId: e83d9101542c4bb283aa76f2a89be126
     displayName: Taxi
-    emptyWeightKg: 2000
+    emptyWeightKg: 3500
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
   - entryId: 8d6f8767176748caa75030e46c47992d
     displayName: Cargo Truck
-    emptyWeightKg: 2000
+    emptyWeightKg: 6000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
   environmentalTest:
-    windPressureKPa: 1
+    windPressureKPa: 0
     windFromRight: 1
-    earthquakeStrengthG: 0.499
+    earthquakeStrengthG: 0
     startDelay: 1
     duration: 6
   allowVehicleCargo: 0
@@ -66,7 +66,7 @@ MonoBehaviour:
   - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
     maxPieces: 0
   - material: {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
-    maxPieces: 0
+    maxPieces: 15
   - material: {fileID: 11400000, guid: 0d3952b3dcb84cfe89fba5d0ee4cfa3e, type: 2}
     maxPieces: 0
   - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
