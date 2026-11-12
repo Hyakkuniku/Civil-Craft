@@ -383,6 +383,15 @@ public class ClipboardManager : MonoBehaviour
         if (BuildUIController.Instance == null) return true;
         
         float pasteCost = 0f;
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        Dictionary<BridgeMaterialSO, int> projectedCounts = null;
+        if (contract != null && contract.allowedMaterials != null)
+            foreach (MaterialAllowance allowance in contract.allowedMaterials)
+                if (allowance != null && allowance.material != null && allowance.maxPieces > 0)
+                {
+                    if (projectedCounts == null) projectedCounts = new Dictionary<BridgeMaterialSO, int>();
+                    projectedCounts[allowance.material] = BuildUIController.Instance.GetMaterialUsageCount(allowance.material);
+                }
         float roadWidth = GameManager.Instance?.ActiveBuildLocation?.activeContract?.GetWideRoadWidth() ?? 0f;
         Quaternion rotation = Quaternion.Euler(0, 0, Mathf.Round(pasteRotationOffset / 15f) * 15f);
         var refundedBars = new HashSet<Bar>();
@@ -401,8 +410,21 @@ public class ClipboardManager : MonoBehaviour
             float length = Vector3.Distance(a != null ? a.transform.position : targetA,
                 b != null ? b.transform.position : targetB);
             pasteCost += length * BridgeWidthGeometry.GetPlacedCostPerMeter(cb.mat, roadWidth);
-            if (replaced != null && refundedBars.Add(replaced)) pasteCost -= BridgeConstructionReceipt.ConstructionCost(replaced);
+            if (projectedCounts != null && projectedCounts.TryGetValue(cb.mat, out int used))
+                projectedCounts[cb.mat] = used + 1;
+            if (replaced != null && refundedBars.Add(replaced))
+            {
+                pasteCost -= BridgeConstructionReceipt.ConstructionCost(replaced);
+                if (projectedCounts != null && replaced.materialData != null &&
+                    projectedCounts.TryGetValue(replaced.materialData, out int previous))
+                    projectedCounts[replaced.materialData] = previous - 1;
+            }
         }
+
+        if (projectedCounts != null)
+            foreach (MaterialAllowance allowance in contract.allowedMaterials)
+                if (allowance != null && allowance.material != null && allowance.maxPieces > 0 &&
+                    projectedCounts[allowance.material] > allowance.maxPieces) return false;
 
         float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
         return pasteCost <= remainingBudget;
@@ -486,7 +508,7 @@ public class ClipboardManager : MonoBehaviour
         {
             if (!CanAffordPaste() && BuildUIController.Instance != null)
             {
-                BuildUIController.Instance.LogAction("Insufficient budget to paste!");
+                BuildUIController.Instance.LogAction("Not enough budget or material pieces to paste.");
             }
             else if (BuildUIController.Instance != null)
             {

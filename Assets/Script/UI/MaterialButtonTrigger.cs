@@ -3,6 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro; 
 
+[DefaultExecutionOrder(100)]
 public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler
 {
     [Tooltip("Drag the BridgeMaterialSO for this specific button here!")]
@@ -27,6 +28,10 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     [Header("Quantity Badge")]
     public GameObject badgeContainer;
     public TextMeshProUGUI quantityText;
+    private Vector2 badgeParentScale;
+    private bool badgeLayoutReady;
+    private bool badgeUsesSharedTemplate;
+    private static GameObject quantityBadgeTemplate;
 
     private RectTransform rectTransform;
     private Vector2 originalPosition;
@@ -78,6 +83,90 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     private void OnEnable()
     {
         EvaluateMaterialRestriction();
+    }
+
+    private void LateUpdate()
+    {
+        if (badgeContainer != null && badgeContainer.activeInHierarchy) RefreshQuantityBadgeLayout();
+    }
+
+    /// <summary>Keep every remaining-piece badge compact in Canvas units, even on skewed legacy docks.</summary>
+    public void RefreshQuantityBadgeLayout()
+    {
+        if (buttonMaterial == null) return;
+        if (quantityBadgeTemplate == null) quantityBadgeTemplate = Resources.Load<GameObject>("UI/MaterialQuantityBadge");
+        if (!badgeUsesSharedTemplate && quantityBadgeTemplate != null)
+        {
+            // Anchor to the common input cell, independent of each artwork's fitted size.
+            Transform parent = transform;
+            if (badgeContainer != null) badgeContainer.SetActive(false);
+            badgeContainer = Instantiate(quantityBadgeTemplate, parent, false);
+            badgeContainer.name = "Quantity Badge";
+            quantityText = badgeContainer.GetComponentInChildren<TextMeshProUGUI>(true);
+            badgeUsesSharedTemplate = true;
+            badgeLayoutReady = false;
+        }
+        if (badgeContainer == null)
+        {
+            badgeContainer = new GameObject("Quantity Badge", typeof(RectTransform), typeof(Image));
+            badgeContainer.transform.SetParent(buttonImage != null ? buttonImage.transform : transform, false);
+            badgeContainer.GetComponent<Image>().color = Color.white;
+            badgeLayoutReady = false;
+        }
+        if (quantityText == null)
+        {
+            var label = new GameObject("Remaining Pieces", typeof(RectTransform), typeof(TextMeshProUGUI));
+            label.transform.SetParent(badgeContainer.transform, false);
+            quantityText = label.GetComponent<TextMeshProUGUI>();
+            quantityText.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/Bekind Sans SDF") ?? TMP_Settings.defaultFontAsset;
+            quantityText.color = new Color32(50, 45, 41, 255);
+            badgeLayoutReady = false;
+        }
+        if (badgeContainer == null || quantityText == null ||
+            !(badgeContainer.transform is RectTransform badge) || badge.parent == null) return;
+        Transform canvas = null;
+        for (Transform cursor = badge.parent; cursor != null; cursor = cursor.parent)
+            if (cursor.GetComponent<Canvas>() != null) canvas = cursor;
+        if (canvas == null) return;
+        Matrix4x4 basis = Matrix4x4.identity;
+        for (Transform cursor = badge.parent; cursor != null && cursor != canvas; cursor = cursor.parent)
+            basis = Matrix4x4.TRS(Vector3.zero, cursor.localRotation, cursor.localScale) * basis;
+        var scale = new Vector2(basis.MultiplyVector(Vector3.right).magnitude, basis.MultiplyVector(Vector3.up).magnitude);
+        if (scale.x < .00001f || scale.y < .00001f) return;
+        if (badgeLayoutReady && (scale - badgeParentScale).sqrMagnitude < .000001f) return;
+        badgeParentScale = scale;
+        badgeLayoutReady = true;
+        badge.anchorMin = badge.anchorMax = badge.pivot = Vector2.one;
+        badge.localRotation = Quaternion.identity;
+        badge.localScale = new Vector3(1f / scale.x, 1f / scale.y, 1f);
+        badge.sizeDelta = new Vector2(34f, 24f);
+        badge.anchoredPosition3D = new Vector3(-3f / scale.x, -3f / scale.y, 0f);
+        RectTransform text = quantityText.rectTransform;
+        text.localScale = Vector3.one;
+        text.localRotation = Quaternion.identity;
+        text.anchorMin = Vector2.zero;
+        text.anchorMax = Vector2.one;
+        text.pivot = Vector2.one * .5f;
+        text.offsetMin = new Vector2(2f, 1f);
+        text.offsetMax = new Vector2(-2f, -1f);
+        quantityText.margin = Vector4.zero;
+        quantityText.fontSize = quantityText.fontSizeMax = 14f;
+        quantityText.fontSizeMin = 9f;
+        quantityText.enableAutoSizing = true;
+        quantityText.enableWordWrapping = false;
+        quantityText.alignment = TextAlignmentOptions.Center;
+        quantityText.richText = false;
+        quantityText.raycastTarget = false;
+        Graphic style = quantityBadgeTemplate != null ? quantityBadgeTemplate.GetComponent<Graphic>() : null;
+        TMP_Text typeStyle = quantityBadgeTemplate != null ? quantityBadgeTemplate.GetComponentInChildren<TMP_Text>(true) : null;
+        quantityText.font = typeStyle != null ? typeStyle.font :
+            Resources.Load<TMP_FontAsset>("Fonts & Materials/Bekind Sans SDF") ?? TMP_Settings.defaultFontAsset;
+        quantityText.color = typeStyle != null ? typeStyle.color : new Color32(50, 45, 41, 255);
+        if (badge.TryGetComponent<Graphic>(out Graphic image))
+        {
+            image.color = style != null ? style.color : Color.white;
+            image.raycastTarget = false;
+        }
     }
 
     private void OnDestroy()
@@ -141,6 +230,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
                         }
                     }
 
+                    RefreshQuantityBadgeLayout();
                     if (badgeContainer != null) badgeContainer.SetActive(true);
                     if (quantityText != null)
                     {
