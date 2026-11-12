@@ -1077,6 +1077,7 @@ public class PlayerDataManager : MonoBehaviour
 
     public bool IsContractCompleted(string contractName)
     {
+        if (HasDeveloperBuildLocationCompletion(contractName)) return true;
         if (CurrentData == null || CurrentData.completedContracts == null ||
             string.IsNullOrWhiteSpace(contractName)) return false;
 
@@ -1104,8 +1105,43 @@ public class PlayerDataManager : MonoBehaviour
 
     public bool HasAnyCompletedContract()
     {
+        if (DevelopmentSettingsAccess.IsSupportedBuild && CurrentData?.developerCompletedBuildLocations != null &&
+            CurrentData.developerCompletedBuildLocations.Exists(HasDeveloperBuildLocationCompletion)) return true;
         return CurrentData != null && CurrentData.completedContracts != null &&
                CurrentData.completedContracts.Exists(IsContractCompleted);
+    }
+
+    public bool HasDeveloperBuildLocationCompletion(string contractName)
+    {
+        if (!DevelopmentSettingsAccess.IsSupportedBuild || string.IsNullOrWhiteSpace(contractName) ||
+            CurrentData?.developerCompletedBuildLocations == null) return false;
+        string contractId = NormalizeContractIdentifier(contractName);
+        return CurrentData.developerCompletedBuildLocations.Exists(id => ContractIdentifiersMatch(id, contractId));
+    }
+
+    /// <summary>One atomic development-only save. Does not fabricate bridges or pay rewards.</summary>
+    public bool DebugCompleteBuildLocations(IEnumerable<string> contractIds, out int added)
+    {
+        added = 0;
+        if (!DevelopmentSettingsAccess.IsSupportedBuild || CurrentData == null || contractIds == null ||
+            DeveloperDebugManager.Instance == null || !DeveloperDebugManager.Instance.IsAvailable ||
+            (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected)) return false;
+        List<string> previous = CurrentData.developerCompletedBuildLocations;
+        var next = previous != null ? new List<string>(previous) : new List<string>();
+        foreach (string raw in contractIds)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            string id = NormalizeContractIdentifier(raw);
+            if (next.Exists(existing => ContractIdentifiersMatch(existing, id))) continue;
+            next.Add(id);
+            added++;
+        }
+        if (added == 0) return true;
+        CurrentData.developerCompletedBuildLocations = next;
+        if (TrySaveGame()) return true;
+        CurrentData.developerCompletedBuildLocations = previous;
+        added = 0;
+        return false;
     }
 
     public void MarkObjectiveAlertUnread()
@@ -3331,6 +3367,7 @@ public class PlayerDataManager : MonoBehaviour
 
     public bool IsContractLocked(string contractId)
     {
+        if (HasDeveloperBuildLocationCompletion(contractId)) return false;
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractId)) return false;
         if (CurrentData.lockedContractIds == null)
             CurrentData.lockedContractIds = new List<string>();

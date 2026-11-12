@@ -213,6 +213,8 @@ public static class DeveloperDebugSystemSetup
         AddLayout(contractActionsLabel.gameObject, 190f, 54f, 0f);
         Button unlockContract = GetOrCreateButton(
             contractActions, "UnlockContractButton", "UNLOCK CONTRACT / BUILD LOCATION", 742f);
+        Button completeAllLocations = GetOrCreateButton(
+            contractActions, "CompleteAllBuildLocationsButton", "COMPLETE ALL BUILD LOCATIONS", 742f);
         TMP_Dropdown achievementDropdown = CreateSelectorRow(
             content, "AchievementRow", "Achievement", "UNLOCK SELECTED", out Button unlockAchievement);
         unlockAchievement.gameObject.name = "UnlockAchievementButton";
@@ -304,6 +306,7 @@ public static class DeveloperDebugSystemSetup
         WireButton(completeAllTutorials, manager.CompleteAllTutorials);
         WireButton(teleportPlayer, manager.TeleportPlayerToSelectedBuildLocation);
         WireButton(unlockContract, manager.UnlockSelectedBuildLocationContract);
+        WireButton(completeAllLocations, manager.CompleteAllBuildLocations);
         WireButton(unlockAchievement, manager.UnlockSelectedAchievement);
         WireButton(unlockAllAchievements, manager.UnlockAllAchievements);
         WireButton(teleportNpc, manager.TeleportNPCToSelectedPhase);

@@ -1,0 +1,50 @@
+public static class Scenarios {
+    private static int count;
+    private static void Check(bool condition, string message) { count++; if (!condition) throw new Exception(message); }
+    public static int Run() {
+        var data = new PlayerDataManager();
+        data.CurrentData.lockedContractIds.Add("site");
+        Check(data.DebugCompleteBuildLocations(new[] { "site", "Old Site Name", "second", " ", null }, out int added) && added == 2, "Batch/alias deduplication failed.");
+        Check(data.Saves == 1 && data.IsContractCompleted("site") && data.IsContractCompleted("Old Site Name") && !data.IsContractLocked("site"), "Site not completed/unlocked after one save.");
+        Check(data.HasAnyCompletedContract(), "Completed sites not discoverable.");
+        Check(!data.HasContractCompletionRecord("site") && data.CurrentData.completedContracts.Count == 0 && data.CurrentData.gold == 345 && data.CurrentData.exp == 123, "Cheat altered earned story progress or rewards.");
+        Check(data.DebugCompleteBuildLocations(new[] { "site", "second" }, out added) && added == 0 && data.Saves == 1, "Repeat changed or saved progress again.");
+        var options = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+        var reloaded = new PlayerDataManager { CurrentData = System.Text.Json.JsonSerializer.Deserialize<PlayerData>(
+            System.Text.Json.JsonSerializer.Serialize(data.CurrentData, options), options) };
+        Check(reloaded.IsContractCompleted("second"), "Stored test flags not read after reload.");
+        data.SaveSucceeds = false;
+        var previous = data.CurrentData.developerCompletedBuildLocations;
+        Check(!data.DebugCompleteBuildLocations(new[] { "third" }, out added) && added == 0 && !data.IsContractCompleted("third") && object.ReferenceEquals(previous, data.CurrentData.developerCompletedBuildLocations), "Failed save did not roll back atomically.");
+        FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+        int saves = data.Saves;
+        Check(!data.DebugCompleteBuildLocations(new[] { "guest" }, out added) && data.Saves == saves, "Guest save protection bypassed.");
+        FusionConnectionManager.Instance = null;
+        DevelopmentSettingsAccess.IsSupportedBuild = false;
+        Check(!data.IsContractCompleted("site") && data.IsContractLocked("site") && !data.HasAnyCompletedContract(), "Release used development flags.");
+        Check(!data.DebugCompleteBuildLocations(new[] { "release" }, out added) && data.Saves == saves, "Release saved a cheat.");
+        data.CurrentData.completedContracts.Add("earned");
+        Check(data.IsContractCompleted("earned") && data.HasContractCompletionRecord("earned"), "Earned progress changed in release.");
+        DevelopmentSettingsAccess.IsSupportedBuild = true;
+        var menu = new DeveloperDebugManager();
+        menu.Selected = new BuildLocation { fastTravelTarget = new Transform { position = new Vector3(10, 7, 20), rotation = new Quaternion { value = 42 } }, navigationTarget = new GameObject() };
+        menu.Selected.navigationTarget.transform.position = new Vector3(999, 999, 999);
+        menu.Motor.Body.velocity = new Vector3(0,-20,0);
+        menu.TeleportPlayerToSelectedBuildLocation();
+        Check(menu.Motor.transform.position.x == 10 && menu.Motor.transform.position.y == 7 && menu.Motor.transform.position.z == 20 && menu.Motor.transform.rotation.value == 42, "Explicit map arrival not used exactly.");
+        Check(menu.Motor.Controller.enabled && menu.Motor.MotionResets == 1 && menu.Motor.Body.velocity.y == 0 && menu.Reset.Safe == 1 && menu.Motor.Look.Snaps == 1 && menu.Closed == 1, "Teleport did not restore controller/motion/camera/recovery state.");
+        menu.Motor.Controller.enabled = false;
+        menu.Selected.fastTravelTarget = null;
+        menu.TeleportPlayerToSelectedBuildLocation();
+        Check(menu.Motor.transform.position.x == 999 && menu.Motor.transform.position.y == 1000 && !menu.Motor.Controller.enabled, "Legacy fallback offset/controller state changed.");
+        menu.Selected.navigationTarget = null;
+        menu.Selected.transform.position = new Vector3(3, 4, 5);
+        menu.TeleportPlayerToSelectedBuildLocation();
+        Check(menu.Motor.transform.position.x == 3 && menu.Motor.transform.position.y == 5, "Missing arrival/navigation fallback failed.");
+        DevelopmentSettingsAccess.IsSupportedBuild = false;
+        menu.Selected.transform.position = new Vector3(8, 8, 8);
+        menu.TeleportPlayerToSelectedBuildLocation();
+        Check(menu.Motor.transform.position.x == 3, "Release invoked developer teleport.");
+        return count;
+    }
+}

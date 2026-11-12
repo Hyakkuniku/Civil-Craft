@@ -1,0 +1,72 @@
+public static class DevelopmentSettingsAccess { public static bool IsSupportedBuild = true; }
+public sealed partial class PlayerData {
+    public List<string> completedContracts = new List<string>();
+    public List<string> lockedContractIds = new List<string>();
+    public int gold = 345, exp = 123;
+}
+public sealed class FusionConnectionManager {
+    public static FusionConnectionManager Instance;
+    public bool IsGuestSaveProtected;
+}
+public partial class PlayerDataManager {
+    public PlayerData CurrentData = new PlayerData();
+    public int Saves;
+    public bool SaveSucceeds = true, allowLegacyProgressPrefs;
+    public bool TrySaveGame() { Saves++; return SaveSucceeds; }
+    public void SaveGame() { Saves++; }
+    public bool HasValidSavedBridge(string id) => id == "earned";
+    private string NormalizeContractIdentifier(string id) => id?.Trim() == "Old Site Name" ? "site" : id?.Trim();
+    private bool ContractIdentifiersMatch(string left, string right) => NormalizeContractIdentifier(left) == NormalizeContractIdentifier(right);
+}
+public partial class DeveloperDebugManager {
+    public static DeveloperDebugManager Instance = new DeveloperDebugManager();
+    public bool IsAvailable = true;
+    public BuildLocation Selected;
+    public PlayerMotor Motor = new PlayerMotor();
+    public LevelResetManager Reset = new LevelResetManager();
+    public int Closed;
+    public Vector3 playerTeleportOffset = new Vector3(0, 1, 0);
+    private BuildLocation GetSelectedBuildLocation() => Selected;
+    private T FindObjectOfType<T>(bool inactive) where T : class => typeof(T) == typeof(PlayerMotor) ? Motor as T : Reset as T;
+    private void SetStatus(string text) { }
+    private string GetBuildLocationLabel(BuildLocation location) => "Site";
+    public void CloseMenu() { Closed++; }
+}
+public class BuildLocation {
+    public Transform fastTravelTarget;
+    public GameObject navigationTarget;
+    public Transform transform = new Transform();
+}
+public class PlayerMotor : GameObject {
+    public CharacterController Controller = new CharacterController();
+    public Rigidbody Body = new Rigidbody();
+    public PlayerLook Look = new PlayerLook();
+    public int MotionResets;
+    public void ResetTestMotion() { MotionResets++; }
+    public T GetComponent<T>() where T : class => typeof(T) == typeof(CharacterController) ? Controller as T :
+        typeof(T) == typeof(Rigidbody) ? Body as T : Look as T;
+}
+public class PlayerLook { public int Snaps; public void SnapToFollowTarget() { Snaps++; } }
+public class LevelResetManager { public int Safe; public void RegisterCurrentPlayerPoseAsSafe() { Safe++; } }
+namespace UnityEngine {
+    public struct Vector3 {
+        public float x,y,z;
+        public Vector3(float x, float y, float z) { this.x=x; this.y=y; this.z=z; }
+        public static Vector3 zero => new Vector3();
+        public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x+b.x,a.y+b.y,a.z+b.z);
+    }
+    public struct Quaternion { public float value; }
+    public class Transform {
+        public Vector3 position; public Quaternion rotation;
+        public void SetPositionAndRotation(Vector3 p, Quaternion q) { position=p; rotation=q; }
+    }
+    public class GameObject { public Transform transform = new Transform(); }
+    public class CharacterController { public bool enabled=true; }
+    public class Rigidbody { public bool isKinematic; public Vector3 position,velocity,angularVelocity; public Quaternion rotation; }
+    public static class Physics { public static void SyncTransforms() { } }
+    public static class PlayerPrefs {
+        public static int GetInt(string key, int value) => value;
+        public static void DeleteKey(string key) { }
+        public static void Save() { }
+    }
+}

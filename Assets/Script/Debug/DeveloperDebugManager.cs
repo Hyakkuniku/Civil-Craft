@@ -327,6 +327,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         RestoreAchievementActionRow(content);
         EnsureNPCWarpSelector();
         EnsureUnlockAllItemsControl(content);
+        EnsureCompleteAllBuildLocationsControl(content);
         EnsureResetProgressControl(content);
         Canvas.ForceUpdateCanvases();
         float scale = Mathf.Max(.01f, debugCanvas.scaleFactor);
@@ -547,6 +548,17 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         npcDropdown.onValueChanged.RemoveListener(HandleNPCSelectionChanged);
         npcDropdown.onValueChanged.AddListener(HandleNPCSelectionChanged);
         PrepareDropdown(npcDropdown);
+    }
+
+    private void EnsureCompleteAllBuildLocationsControl(RectTransform content)
+    {
+        Transform row = FindDirectChildByName(content, "ContractActionsRow");
+        if (row == null || !DevelopmentSettingsAccess.IsSupportedBuild) return;
+        Transform existing = FindDirectChildByName(row, "CompleteAllBuildLocationsButton");
+        if (existing != null) return;
+        Button source = FindDirectChildByName(row, "UnlockContractButton")?.GetComponent<Button>();
+        CreateRuntimeDebugButton(row, "CompleteAllBuildLocationsButton", "COMPLETE ALL BUILD LOCATIONS",
+            source, CompleteAllBuildLocations);
     }
 
     private void EnsureResetProgressControl(RectTransform content)
@@ -1025,6 +1037,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
     public void TeleportPlayerToSelectedBuildLocation()
     {
+        if (!DevelopmentSettingsAccess.IsSupportedBuild || !IsAvailable) return;
         BuildLocation location = GetSelectedBuildLocation();
         PlayerMotor player = FindObjectOfType<PlayerMotor>(true);
         if (location == null || player == null)
@@ -1033,15 +1046,29 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             return;
         }
 
-        Transform target = location.navigationTarget != null
-            ? location.navigationTarget.transform
-            : location.transform;
+        // Match expanded-map travel: an explicit arrival pose is already placed
+        // at the correct height. Only legacy fallback targets need the offset.
+        Transform target = location.fastTravelTarget != null ? location.fastTravelTarget :
+            location.navigationTarget != null ? location.navigationTarget.transform : location.transform;
+        Vector3 destination = target.position;
+        if (location.fastTravelTarget == null) destination += playerTeleportOffset;
 
         CharacterController controller = player.GetComponent<CharacterController>();
         bool controllerWasEnabled = controller != null && controller.enabled;
         if (controllerWasEnabled) controller.enabled = false;
-        player.transform.SetPositionAndRotation(target.position + playerTeleportOffset, target.rotation);
+        Rigidbody body = player.GetComponent<Rigidbody>();
+        if (body != null)
+        {
+            if (!body.isKinematic) { body.velocity = Vector3.zero; body.angularVelocity = Vector3.zero; }
+            body.position = destination;
+            body.rotation = target.rotation;
+        }
+        player.transform.SetPositionAndRotation(destination, target.rotation);
+        player.ResetTestMotion();
+        Physics.SyncTransforms();
         if (controllerWasEnabled) controller.enabled = true;
+        player.GetComponent<PlayerLook>()?.SnapToFollowTarget();
+        FindObjectOfType<LevelResetManager>(true)?.RegisterCurrentPlayerPoseAsSafe();
 
         SetStatus($"Teleported player to: {GetBuildLocationLabel(location)}");
         CloseMenu();
@@ -1484,6 +1511,43 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         LevelCompleteManager.Instance.CompleteLevel(contract);
         SetStatus($"Triggered success sequence for: {contract.DisplayName}");
         CloseMenu();
+    }
+
+    public void CompleteAllBuildLocations()
+    {
+        if (!DevelopmentSettingsAccess.IsSupportedBuild || !IsAvailable) return;
+        PlayerDataManager data = PlayerDataManager.Instance;
+        if (data == null)
+        {
+            SetStatus("Player data is unavailable. No locations were changed.");
+            return;
+        }
+        RefreshSceneObjects();
+        var contracts = new List<string>();
+        var sites = new Dictionary<BuildLocation, ContractSO>();
+        int skipped = 0;
+        foreach (BuildLocation location in buildLocations)
+        {
+            if (location.IsSessionChallengeLocation) continue;
+            ContractSO contract = location.ChallengeContractDefinition;
+            if (contract == null || string.IsNullOrWhiteSpace(contract.ContractID)) { skipped++; continue; }
+            sites.Add(location, contract);
+            contracts.Add(contract.ContractID);
+        }
+        if (sites.Count == 0)
+        {
+            SetStatus("No campaign build locations with contracts were found in the loaded scenes.");
+            return;
+        }
+        if (!data.DebugCompleteBuildLocations(contracts, out int added))
+        {
+            SetStatus("Could not save development completion. No locations were changed.");
+            return;
+        }
+        foreach (var site in sites) site.Key.activeContract = site.Value;
+        RefreshSceneObjects();
+        SetStatus($"{sites.Count} build locations completed for development testing ({added} new). " +
+            (skipped > 0 ? $"Skipped {skipped} without a contract. " : "") + "No bridge designs or rewards were created.");
     }
 
     public void ClearAllLocalSaveData()

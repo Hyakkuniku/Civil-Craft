@@ -232,6 +232,9 @@ public class PlayerData
     public bool objectiveNavigationHidden = false;
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
+    // Development-only site shortcuts. Kept separate from earned story completion,
+    // bridge geometry, statistics and currency rewards; ignored in release builds.
+    public List<string> developerCompletedBuildLocations = new List<string>();
     public List<ContractCompletionRecord> contractCompletionRecords = new List<ContractCompletionRecord>();
     public List<string> lockedContractIds = new List<string>();
     public List<string> playedCinematicIds = new List<string>();

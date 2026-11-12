@@ -17,16 +17,22 @@ MonoBehaviour:
   liveLoadTests:
   - entryId: e83d9101542c4bb283aa76f2a89be126
     displayName: Taxi
-    emptyWeightKg: 20000
+    emptyWeightKg: 2000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
   - entryId: 8d6f8767176748caa75030e46c47992d
     displayName: Cargo Truck
-    emptyWeightKg: 10000
+    emptyWeightKg: 2000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
+  environmentalTest:
+    windPressureKPa: 1
+    windFromRight: 1
+    earthquakeStrengthG: 0.499
+    startDelay: 1
+    duration: 6
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 

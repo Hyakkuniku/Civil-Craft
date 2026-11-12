@@ -2093,6 +2093,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     {
         if (location == null) return false;
 
+        if (DevelopmentSettingsAccess.IsSupportedBuild && PlayerDataManager.Instance != null)
+        {
+            ContractSO definition = location.ChallengeContractDefinition;
+            if (definition != null &&
+                PlayerDataManager.Instance.HasDeveloperBuildLocationCompletion(definition.ContractID)) return true;
+        }
+
         if (location.activeContract != null && PlayerDataManager.Instance != null &&
             PlayerDataManager.Instance.HasContractCompletionRecord(location.activeContract.ContractID))
         {
